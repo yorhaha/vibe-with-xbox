@@ -82,3 +82,58 @@ Keep every other detail and all other text unchanged. Keep opaque pure white can
 - Checked RT closes a pane after 0.7 seconds held, and Start pauses or resumes on release after 1 second held.
 - Checked the subtitle, F5 setup note, tmux requirement, and default-configuration disclaimer.
 - The guide is documentation only; application runtime behavior is unchanged.
+
+## English localization prompt
+
+Use case: text-localization.
+Asset type: English controller button guide for the open-source project "Vibe with Xbox".
+Input image: the attached Chinese guide is the edit target.
+Primary request: Translate and replace every Chinese text string in the image with the exact English copy below. Preserve the controller, button photos, button colors, connector endpoints, layout, white background, shadows, cards, typography hierarchy, green branding, orange RT warning, and 4:3 canvas. This is a localization edit, not a redesign.
+Typography: crisp professional English sans serif, readable at README width. Resize English type within each existing card when needed, but never crop, truncate, overlap, or run text outside a card. Use all text verbatim and add no other wording.
+
+Header:
+Brand stays exactly "Vibe with Xbox"
+Main title: "CONTROLLER BUTTON GUIDE"
+Subtitle: "Control Claude Code, macOS Dictation, and tmux with an Xbox controller"
+Top-right pill: "DEFAULT MAPPING"
+
+Left cards from top to bottom:
+1. Header "LB · LEFT BUMPER"; gesture pill "PRESS"; action "PREVIOUS PANE"; helper "Switch tmux focus"
+2. Header "LEFT STICK"; gesture pill "TILT"; two cells "UP  ↑" and "DOWN  ↓"; helper "Hold to repeat"
+3. Header "D-PAD"; action "NEW TMUX PANE"; four cells "↑  ABOVE", "↓  BELOW", "←  LEFT", "→  RIGHT"
+4. Header "START · MENU"; gesture pill "HOLD 1S, THEN RELEASE"; action "PAUSE / RESUME MAPPING"; helper "Toggle the full mapping"
+5. Header "UNMAPPED"; line 1 "LT, right stick, stick clicks"; line 2 "View, Share, Xbox button"; line 3 "Left/right left-stick input"
+
+Right cards from top to bottom:
+1. Keep the existing combined two-row shoulder card and divider.
+   First row: header "RB · RIGHT BUMPER"; gesture pill "PRESS"; action "NEXT PANE".
+   Second row: header "RT · RIGHT TRIGGER"; orange gesture pill "HOLD 0.7S"; action "CLOSE CURRENT TMUX PANE"; orange helper "WARNING: TERMINATES PANE".
+2. Yellow badge header "Y BUTTON"; gesture pill "PRESS"; action "↓ + Enter"; helper "Move down and confirm"
+3. Red badge header "B BUTTON"; gesture pill "PRESS"; action "Esc"; helper "Cancel / Back"
+4. Blue badge header "X BUTTON"; gesture pill "PRESS"; action "START / STOP DICTATION"; helper "macOS Dictation · default F5"
+5. Green badge header "A BUTTON"; gesture pill "PRESS"; action "Enter"; helper "Confirm / Submit"
+
+Footer:
+Heading "BEFORE USE"
+Green step 01: "CONNECT XBOX CONTROLLER"
+Green step 02: "GRANT macOS ACCESSIBILITY"
+Green step 03: "SET DICTATION SHORTCUT TO F5"
+Centered bottom note: "Pane controls require a tmux session · Default mapping shown; custom configs may differ"
+
+Critical invariants:
+- Result is fully English: remove every Chinese character. Do not translate product names, button letters, Claude Code, macOS, or tmux.
+- Keep every physical controller label and all connector paths unchanged. The large controller's left bumper is LB and right bumper is RB.
+- Right face-button card order remains Y, B, X, A. Physical Y connects to Y; B to B; X to X; A to A.
+- RT connects to the RT row inside the top combined card, not the Y card. RT is HOLD 0.7S, never press.
+- Start says HOLD 1S, THEN RELEASE.
+- D-pad creates tmux panes; left stick navigates up/down.
+- No fake battery, connection state, switch, watermark, QR code, URL, gaming language, or new controls.
+- Keep a fully opaque solid white background with no transparent, black, green, or cyan artifacts.
+
+## English artifact verification
+
+- File: `docs/assets/xbox-button-guide-en.png`.
+- Checked that all visible copy is English and that the subtitle and three setup steps are complete.
+- Checked the Y / B / X / A card order and the corresponding controller leader lines.
+- Checked the LB / RB / RT labels, RT 0.7-second hold, and Start 1-second hold-and-release behavior.
+- The English image is linked from `README_EN.md`; the Chinese image remains linked from `README.md`.

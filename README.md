@@ -1,5 +1,7 @@
 # Vibe with Xbox
 
+**简体中文** | [English](README_EN.md)
+
 把 Xbox 手柄变成 macOS 上的轻量遥控器，用来操作 **Claude Code**、**macOS 听写**和 **tmux**。
 
 Vibe with Xbox 会在本机浏览器中打开按键说明与运行状态页面。连接手柄并启动 Bridge 后，可以用手柄确认或取消 Claude Code 提示、上下选择选项、切换听写，以及管理 tmux 窗格。
