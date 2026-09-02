@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "general": {
+    "auto_start_bridge": false,
+    "deadzone": 0.5,
+    "trigger_threshold": 0.2,
+    "repeat_initial_delay": 0.35,
+    "repeat_rate": 0.08,
+    "start_hold_seconds": 1.0,
+    "show_action_toasts": true
+  },
+  "macos": {
+    "dictation_key": "f5",
+    "dictation_flags": 0
+  },
+  "buttons": {
+    "A": {
+      "enabled": true,
+      "label": "Enter",
+      "description": "Confirm the current prompt or send the current choice.",
+      "action": "key",
+      "key": "return"
+    },
+    "B": {
+      "enabled": true,
+      "label": "Esc",
+      "description": "Cancel, close a picker, or back out of the current UI.",
+      "action": "key",
+      "key": "escape"
+    },
+    "X": {
+      "enabled": true,
+      "label": "Dictation",
+      "description": "Toggle macOS Dictation using the configured shortcut.",
+      "action": "dictation"
+    },
+    "Y": {
+      "enabled": true,
+      "label": "Down + Enter",
+      "description": "Select the next option, useful for yes / auto-edit prompts.",
+      "action": "sequence",
+      "keys": ["down", "return"]
+    }
+  }
+}
