@@ -36,12 +36,16 @@ def print_mapping(config: dict) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Xbox controller bridge for Claude Code, macOS Dictation, and tmux."
+        description="Xbox controller bridge for Claude Code and tmux."
     )
     parser.add_argument("--config", type=Path, help="path to a custom config.json")
     parser.add_argument("--headless", action="store_true", help="run without the desktop guide")
     parser.add_argument("--debug", action="store_true", help="print raw controller events")
-    parser.add_argument("--doctor", action="store_true", help="check controller, permissions, and tmux")
+    parser.add_argument(
+        "--doctor",
+        action="store_true",
+        help="check controller, Accessibility permission, and tmux",
+    )
     parser.add_argument("--init-config", action="store_true", help="write the default config file")
     parser.add_argument("--print-config-path", action="store_true", help="print the user config path")
     parser.add_argument("--show-mapping", action="store_true", help="print the current mapping")

@@ -16,12 +16,12 @@ from urllib.parse import urlparse
 from . import __version__
 from .bridge import BridgeEvent, ControllerBridge
 from .config import APP_NAME, CONFIG_PATH, guide_rows, load_config, write_default_config
-from .doctor import run_checks
+from .doctor import CheckResult, run_checks
 from .macos import open_accessibility_settings
 
 
 HTML_TEMPLATE = r"""<!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -114,7 +114,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     .status-bar {
       grid-column: 1 / -1;
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 1px;
       overflow: hidden;
     }
@@ -252,43 +252,41 @@ HTML_TEMPLATE = r"""<!doctype html>
   <header>
     <div>
       <h1>Vibe with Xbox</h1>
-      <p>Xbox controller bridge for Claude Code, macOS Dictation, and tmux.</p>
+      <p>用 Xbox 手柄操作 Claude Code 和 tmux</p>
     </div>
     <div class="version">v__VERSION__</div>
   </header>
   <main>
-    <section class="toolbar" aria-label="Controls">
-      <button class="primary" id="start">Start Bridge</button>
-      <button id="stop">Stop</button>
-      <button id="checks">Run Checks</button>
-      <button id="config">Open Config</button>
-      <button id="accessibility">Accessibility</button>
-      <button id="quit">Quit App</button>
+    <section class="toolbar" aria-label="控制操作">
+      <button class="primary" id="start">启动手柄映射</button>
+      <button id="stop">停止</button>
+      <button id="checks">运行环境检查</button>
+      <button id="config">打开配置</button>
+      <button id="accessibility">辅助功能权限</button>
+      <button id="quit">退出应用</button>
     </section>
     <section class="status-bar">
-      <div class="status-item"><strong>Controller</strong><span id="connection">Not started</span></div>
-      <div class="status-item"><strong>Mapping</strong><span id="mapping">Enabled</span></div>
-      <div class="status-item"><strong>Last action</strong><span id="last-action">No controller action yet</span></div>
+      <div class="status-item"><strong>手柄</strong><span id="connection">尚未启动</span></div>
+      <div class="status-item"><strong>最近操作</strong><span id="last-action">暂无手柄操作</span></div>
     </section>
     <section class="panel">
-      <h2>Controller Guide</h2>
+      <h2>手柄按键说明</h2>
       <div class="controller-wrap">
         __CONTROLLER_SVG__
       </div>
     </section>
     <aside class="panel">
-      <h2>Current Mapping</h2>
+      <h2>当前映射</h2>
       <table>
-        <thead><tr><th>Control</th><th>Action</th></tr></thead>
+        <thead><tr><th>控制项</th><th>操作</th></tr></thead>
         <tbody id="mapping-table"></tbody>
       </table>
       <div class="checks">
-        <h2>Setup Checks</h2>
+        <h2>环境检查</h2>
         <div id="check-list"></div>
       </div>
       <p class="note">
-        Dictation shortcut should be F5. tmux actions require tmux to be installed
-        and a tmux session to be running.
+        tmux 操作仅作用于本机 tmux；请先在本机终端进入 tmux 会话。
       </p>
     </aside>
   </main>
@@ -346,7 +344,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         const status = document.createElement("span");
         const message = document.createElement("span");
         div.className = "check";
-        const label = check.status === "ok" ? "OK" : check.status === "fail" ? "Missing" : "Needs setup";
+        const label = check.status === "ok" ? "正常" : check.status === "fail" ? "不可用" : "需要设置";
         name.textContent = check.name;
         status.className = `pill ${check.status}`;
         status.textContent = label;
@@ -360,17 +358,16 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     function handleEvent(event) {
       if (event.kind === "connected") setText("connection", event.message);
-      if (event.kind === "stopped") setText("connection", "Stopped");
+      if (event.kind === "stopped") setText("connection", "已停止");
       if (event.kind === "error") setText("connection", event.message);
-      if (event.kind === "toggle") setText("mapping", event.enabled ? "Enabled" : "Paused");
       if (event.kind === "action") {
         const row = controls.get(event.control);
-        setText("last-action", `${row ? row.name : event.control} -> ${event.action_label}`);
+        setText("last-action", `${row ? row.name : event.control}：${event.action_label}`);
         pulse(event.control);
       }
       if (event.kind === "down" || event.kind === "pulse") setActive(event.control, true);
       if (event.kind === "up") setActive(event.control, false);
-      if (event.kind === "warning" || event.kind === "debug") setText("last-action", event.message);
+      if (event.kind === "debug") setText("last-action", event.message);
     }
 
     document.getElementById("start").addEventListener("click", async () => {
@@ -415,12 +412,12 @@ def controller_svg(config: dict[str, Any]) -> str:
         return escape(labels.get(control, control))
 
     return f"""
-<svg viewBox="0 0 760 520" role="img" aria-label="Xbox controller mapping">
+<svg viewBox="0 0 760 520" role="img" aria-label="Xbox 手柄按键映射">
   <path class="controller-body" d="M130 170 C190 90 280 130 320 140 L440 140 C480 130 570 90 630 170 C680 245 710 390 640 430 C590 460 530 400 475 370 L285 370 C230 400 170 460 120 430 C50 390 80 245 130 170 Z"/>
 
   <g class="control" data-control="LB"><rect class="button-base" x="190" y="98" width="140" height="38" rx="12"/><text class="button-text" x="260" y="118">LB</text></g>
   <g class="control" data-control="RB"><rect class="button-base" x="430" y="98" width="140" height="38" rx="12"/><text class="button-text" x="500" y="118">RB</text></g>
-  <g class="control" data-control="RT"><rect class="button-base" x="510" y="48" width="150" height="34" rx="12"/><text class="button-text" x="585" y="66">RT hold</text></g>
+  <g class="control" data-control="RT"><rect class="button-base" x="510" y="48" width="150" height="34" rx="12"/><text class="button-text" x="585" y="66">长按 RT</text></g>
 
   <g class="control" data-control="LEFT_STICK_UP">
     <circle class="button-base" cx="245" cy="238" r="46"/>
@@ -429,6 +426,11 @@ def controller_svg(config: dict[str, Any]) -> str:
   <g class="control" data-control="LEFT_STICK_DOWN">
     <circle class="button-base" cx="245" cy="238" r="27"/>
   </g>
+  <circle class="button-base" cx="455" cy="340" r="45"/>
+  <g class="control" data-control="RIGHT_STICK_UP"><path class="button-base" d="M455 300 L472 326 L438 326 Z"/></g>
+  <g class="control" data-control="RIGHT_STICK_DOWN"><path class="button-base" d="M455 380 L472 354 L438 354 Z"/></g>
+  <g class="control" data-control="RIGHT_STICK_LEFT"><path class="button-base" d="M415 340 L441 323 L441 357 Z"/></g>
+  <g class="control" data-control="RIGHT_STICK_RIGHT"><path class="button-base" d="M495 340 L469 323 L469 357 Z"/></g>
 
   <g class="control" data-control="DPAD_UP"><rect class="button-base" x="180" y="305" width="36" height="45" rx="8"/></g>
   <g class="control" data-control="DPAD_DOWN"><rect class="button-base" x="180" y="390" width="36" height="45" rx="8"/></g>
@@ -450,6 +452,10 @@ def controller_svg(config: dict[str, Any]) -> str:
 
   <path class="callout" d="M245 190 L210 112"/><text class="callout-label" x="205" y="98" text-anchor="end">{label("LEFT_STICK_UP")}</text>
   <path class="callout" d="M245 285 L318 436"/><text class="callout-label" x="326" y="446">{label("LEFT_STICK_DOWN")}</text>
+  <path class="callout" d="M455 295 L420 276"/><text class="callout-label" x="412" y="276" text-anchor="end">{label("RIGHT_STICK_UP")}</text>
+  <path class="callout" d="M455 385 L420 420"/><text class="callout-label" x="412" y="430" text-anchor="end">{label("RIGHT_STICK_DOWN")}</text>
+  <path class="callout" d="M410 340 L350 326"/><text class="callout-label" x="342" y="326" text-anchor="end">{label("RIGHT_STICK_LEFT")}</text>
+  <path class="callout" d="M500 340 L550 326"/><text class="callout-label" x="558" y="326">{label("RIGHT_STICK_RIGHT")}</text>
   <path class="callout" d="M198 305 L126 270"/><text class="callout-label" x="116" y="270" text-anchor="end">{label("DPAD_UP")}</text>
   <path class="callout" d="M198 435 L126 462"/><text class="callout-label" x="116" y="466" text-anchor="end">{label("DPAD_DOWN")}</text>
   <path class="callout" d="M132 371 L74 371"/><text class="callout-label" x="64" y="375" text-anchor="end">{label("DPAD_LEFT")}</text>
@@ -477,9 +483,18 @@ class LocalGuideApp:
         self.host = host
         self.port = port
         self.bridge: ControllerBridge | None = None
-        self.bridge_thread: threading.Thread | None = None
+        self.server_thread: threading.Thread | None = None
         self.subscribers: list[queue.Queue[dict[str, Any]]] = []
         self.lock = threading.Lock()
+        self.state_lock = threading.Lock()
+        self.main_wakeup = threading.Event()
+        self.bridge_requested = False
+        self.bridge_running = False
+        self.quit_requested = False
+        self.check_results: list[CheckResult] = []
+        self.check_requested = False
+        self.check_complete = threading.Event()
+        self.check_request_lock = threading.Lock()
         self.server = self._make_server()
 
     @property
@@ -488,17 +503,68 @@ class LocalGuideApp:
         return f"http://{host}:{port}/"
 
     def run(self, open_browser: bool = True) -> int:
+        # SDL controller events are only reliable on macOS when pygame is
+        # initialized and pumped from the process main thread.  HTTP requests
+        # therefore run in the background while this thread owns the bridge.
+        self.check_results = run_checks()
+        self.server_thread = threading.Thread(
+            target=self.server.serve_forever,
+            daemon=True,
+            name="vibe-with-xbox-http",
+        )
+        self.server_thread.start()
         if open_browser:
             webbrowser.open(self.url)
         print(f"{APP_NAME} is running at {self.url}")
+
+        if self.config.get("general", {}).get("auto_start_bridge", False):
+            self.start_bridge()
+
         try:
-            self.server.serve_forever()
+            while True:
+                self.main_wakeup.wait()
+                self.main_wakeup.clear()
+                with self.state_lock:
+                    if self.quit_requested:
+                        break
+                    should_check = self.check_requested
+                    self.check_requested = False
+                    should_start = self.bridge_requested
+                if should_check:
+                    self.check_results = run_checks()
+                    self.check_complete.set()
+                if not should_start:
+                    continue
+                self._run_bridge_on_main_thread()
         except KeyboardInterrupt:
             print()
         finally:
             self.stop_bridge()
+            self.server.shutdown()
             self.server.server_close()
+            if self.server_thread:
+                self.server_thread.join(timeout=1.0)
         return 0
+
+    def _run_bridge_on_main_thread(self) -> None:
+        bridge = ControllerBridge(self.config, callback=self.on_bridge_event)
+        with self.state_lock:
+            if not self.bridge_requested or self.quit_requested:
+                return
+            self.bridge = bridge
+            self.bridge_running = True
+
+        try:
+            bridge.run()
+        except Exception as exc:
+            self.on_bridge_event(BridgeEvent("error", message=f"手柄映射异常退出：{exc}"))
+        finally:
+            bridge.stop()
+            with self.state_lock:
+                if self.bridge is bridge:
+                    self.bridge = None
+                self.bridge_running = False
+                self.bridge_requested = False
 
     def _make_server(self) -> ThreadingHTTPServer:
         app = self
@@ -510,10 +576,10 @@ class LocalGuideApp:
                     self._send_html(render_index(app.config))
                 elif path == "/events":
                     self._send_events()
-                elif path == "/api/state":
-                    self._send_json(app.state())
                 else:
-                    self.send_error(HTTPStatus.NOT_FOUND, "Not found")
+                    # The reason phrase must be latin-1; the Chinese hint goes
+                    # in the body instead.
+                    self.send_error(HTTPStatus.NOT_FOUND, "Not Found", "未找到页面")
 
             def do_POST(self) -> None:
                 path = urlparse(self.path).path
@@ -522,16 +588,16 @@ class LocalGuideApp:
                 elif path == "/api/stop":
                     self._send_json(app.stop_bridge())
                 elif path == "/api/checks":
-                    self._send_json({"checks": [asdict(check) for check in run_checks()]})
+                    self._send_json({"checks": [asdict(check) for check in app.refresh_checks()]})
                 elif path == "/api/config":
                     self._send_json(app.open_config())
                 elif path == "/api/accessibility":
                     open_accessibility_settings()
-                    self._send_json({"ok": True, "message": "Opened Accessibility settings."})
+                    self._send_json({"ok": True, "message": "已打开辅助功能设置。"})
                 elif path == "/api/quit":
                     self._send_json(app.quit())
                 else:
-                    self.send_error(HTTPStatus.NOT_FOUND, "Not found")
+                    self.send_error(HTTPStatus.NOT_FOUND, "Not Found", "未找到页面")
 
             def log_message(self, fmt: str, *args: Any) -> None:
                 return
@@ -581,13 +647,20 @@ class LocalGuideApp:
                 return server
             except OSError:
                 continue
-        raise RuntimeError("Could not start the local guide server.")
+        raise RuntimeError("无法启动本地说明页面服务。")
 
-    def state(self) -> dict[str, Any]:
-        return {
-            "mapping": guide_rows(self.config),
-            "running": bool(self.bridge_thread and self.bridge_thread.is_alive()),
-        }
+    def refresh_checks(self) -> list[CheckResult]:
+        # Do not reinitialize pygame while the live bridge owns it.  When the
+        # bridge is idle, schedule the check on the same main thread SDL uses.
+        with self.check_request_lock:
+            with self.state_lock:
+                if self.bridge_running or self.bridge_requested or self.quit_requested:
+                    return list(self.check_results)
+                self.check_requested = True
+                self.check_complete.clear()
+            self.main_wakeup.set()
+            self.check_complete.wait(timeout=5.0)
+            return list(self.check_results)
 
     def add_subscriber(self, client_queue: queue.Queue[dict[str, Any]]) -> None:
         with self.lock:
@@ -612,33 +685,41 @@ class LocalGuideApp:
                 "value": event.value,
                 "message": event.message,
                 "action_label": event.action_label,
-                "enabled": event.enabled,
             }
         )
 
     def start_bridge(self) -> dict[str, Any]:
-        if self.bridge_thread and self.bridge_thread.is_alive():
-            return {"ok": True, "message": "Bridge is already running."}
-        self.bridge = ControllerBridge(self.config, callback=self.on_bridge_event)
-        self.bridge_thread = threading.Thread(target=self.bridge.run, daemon=True)
-        self.bridge_thread.start()
-        return {"ok": True, "message": "Starting controller bridge..."}
+        with self.state_lock:
+            if self.bridge_running or self.bridge_requested:
+                return {"ok": True, "message": "手柄映射已在运行。"}
+            self.bridge_requested = True
+        self.main_wakeup.set()
+        return {"ok": True, "message": "正在启动手柄映射……"}
 
     def stop_bridge(self) -> dict[str, Any]:
-        if self.bridge:
-            self.bridge.stop()
-        self.bridge = None
-        return {"ok": True, "message": "Stopped."}
+        with self.state_lock:
+            self.bridge_requested = False
+            bridge = self.bridge
+        if bridge:
+            bridge.stop()
+        self.main_wakeup.set()
+        return {"ok": True, "message": "已停止。"}
 
     def open_config(self) -> dict[str, Any]:
         path = write_default_config(self.config_path or CONFIG_PATH)
         subprocess.run(["open", str(path)], check=False)
-        return {"ok": True, "message": f"Opened {path}"}
+        return {"ok": True, "message": f"已打开配置文件：{path}"}
 
     def quit(self) -> dict[str, Any]:
-        self.stop_bridge()
+        with self.state_lock:
+            self.quit_requested = True
+            self.bridge_requested = False
+            bridge = self.bridge
+        if bridge:
+            bridge.stop()
+        self.main_wakeup.set()
         threading.Thread(target=self.server.shutdown, daemon=True).start()
-        return {"ok": True, "message": "Vibe with Xbox is quitting."}
+        return {"ok": True, "message": "Vibe with Xbox 正在退出。"}
 
 
 def run_gui(config_path: Path | None = None) -> int:

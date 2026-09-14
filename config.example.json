@@ -1,45 +1,74 @@
 {
-  "version": 1,
+  "version": 9,
   "general": {
     "auto_start_bridge": false,
     "deadzone": 0.5,
     "trigger_threshold": 0.2,
     "repeat_initial_delay": 0.35,
     "repeat_rate": 0.08,
-    "start_hold_seconds": 1.0,
     "show_action_toasts": true
-  },
-  "macos": {
-    "dictation_key": "f5",
-    "dictation_flags": 0
   },
   "buttons": {
     "A": {
       "enabled": true,
       "label": "Enter",
-      "description": "Confirm the current prompt or send the current choice.",
+      "description": "确认当前提示或提交当前选择。",
       "action": "key",
       "key": "return"
     },
     "B": {
       "enabled": true,
       "label": "Esc",
-      "description": "Cancel, close a picker, or back out of the current UI.",
+      "description": "取消操作、关闭选择器或返回。",
       "action": "key",
       "key": "escape"
     },
     "X": {
       "enabled": true,
-      "label": "Dictation",
-      "description": "Toggle macOS Dictation using the configured shortcut.",
-      "action": "dictation"
+      "label": "按住右 Option",
+      "description": "按住 X 时保持按下 macOS 右 Option 键。",
+      "action": "hold_key",
+      "key": "right_option"
     },
     "Y": {
       "enabled": true,
-      "label": "Down + Enter",
-      "description": "Select the next option, useful for yes / auto-edit prompts.",
+      "label": "↓ + Enter",
+      "description": "下移一项并确认，适用于确认或自动编辑提示。",
       "action": "sequence",
       "keys": ["down", "return"]
+    },
+    "START": {
+      "enabled": true,
+      "label": "粘贴重启指令",
+      "description": "输入：在本分支commit & push代码，然后温和重启项目",
+      "action": "text",
+      "text": "在本分支commit & push代码，然后温和重启项目"
+    }
+  },
+  "stick": {
+    "RIGHT_STICK_UP": {
+      "enabled": true,
+      "label": "切换到上方窗格",
+      "action": "tmux",
+      "command": "select-pane -U"
+    },
+    "RIGHT_STICK_DOWN": {
+      "enabled": true,
+      "label": "切换到下方窗格",
+      "action": "tmux",
+      "command": "select-pane -D"
+    },
+    "RIGHT_STICK_LEFT": {
+      "enabled": true,
+      "label": "切换到左侧窗格",
+      "action": "tmux",
+      "command": "select-pane -L"
+    },
+    "RIGHT_STICK_RIGHT": {
+      "enabled": true,
+      "label": "切换到右侧窗格",
+      "action": "tmux",
+      "command": "select-pane -R"
     }
   }
 }

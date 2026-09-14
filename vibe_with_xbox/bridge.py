@@ -23,7 +23,6 @@ class BridgeEvent:
     value: float | None = None
     message: str = ""
     action_label: str = ""
-    enabled: bool | None = None
 
 
 class ControllerBridge:
@@ -39,24 +38,26 @@ class ControllerBridge:
         self.debug = debug
         self.send_actions = send_actions
         self.stop_event = threading.Event()
-        self.enabled = True
         self.tmux = TmuxController()
+        self._held_keys: dict[str, str | int] = {}
+        self._held_keys_lock = threading.Lock()
 
         general = config.get("general", {})
         self.deadzone = float(general.get("deadzone", 0.5))
         self.trigger_threshold = float(general.get("trigger_threshold", 0.2))
         self.repeat_initial_delay = float(general.get("repeat_initial_delay", 0.35))
         self.repeat_rate = float(general.get("repeat_rate", 0.08))
-        self.start_hold_seconds = float(general.get("start_hold_seconds", 1.0))
 
-        self._start_pressed_at: float | None = None
         self._stick_dir = 0
         self._stick_next_fire = 0.0
+        self._right_stick_control: str | None = None
         self._rt_pressed_at: float | None = None
         self._rt_fired = False
 
     def stop(self) -> None:
         self.stop_event.set()
+        self._release_all_held_keys()
+        self._release_right_stick()
 
     def emit(self, event: BridgeEvent) -> None:
         if self.callback:
@@ -66,7 +67,7 @@ class ControllerBridge:
         try:
             import pygame
         except Exception as exc:
-            self.emit(BridgeEvent("error", message=f"pygame is unavailable: {exc}"))
+            self.emit(BridgeEvent("error", message=f"pygame 不可用：{exc}"))
             return 1
 
         pygame.init()
@@ -76,49 +77,56 @@ class ControllerBridge:
             self.emit(
                 BridgeEvent(
                     "error",
-                    message="No controller detected. Pair your Xbox controller and try again.",
+                    message="未检测到手柄，请连接 Xbox 手柄后重试。",
                 )
             )
             return 1
 
         joystick = pygame.joystick.Joystick(0)
-        joystick.init()
-        self.emit(
-            BridgeEvent(
-                "connected",
-                message=(
-                    f"Connected: {joystick.get_name()} "
-                    f"({joystick.get_numaxes()} axes, {joystick.get_numbuttons()} buttons)"
-                ),
-                enabled=self.enabled,
+        try:
+            joystick.init()
+            self.emit(
+                BridgeEvent(
+                    "connected",
+                    message=(
+                        f"已连接：{joystick.get_name()} "
+                        f"（{joystick.get_numaxes()} 个轴，{joystick.get_numbuttons()} 个按键）"
+                    ),
+                )
             )
-        )
 
-        clock = pygame.time.Clock()
-        while not self.stop_event.is_set():
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    return 0
-                if event.type == pygame.JOYBUTTONDOWN:
-                    self._handle_button_down(event.button)
-                elif event.type == pygame.JOYBUTTONUP:
-                    self._handle_button_up(event.button)
-                elif event.type == pygame.JOYAXISMOTION and self.debug:
-                    if abs(event.value) > self.deadzone:
-                        self.emit(
-                            BridgeEvent(
-                                "debug",
-                                value=float(event.value),
-                                message=f"axis {event.axis}: {event.value:+.2f}",
+            clock = pygame.time.Clock()
+            while not self.stop_event.is_set():
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        return 0
+                    if event.type == pygame.JOYBUTTONDOWN:
+                        self._handle_button_down(event.button)
+                    elif event.type == pygame.JOYBUTTONUP:
+                        self._handle_button_up(event.button)
+                    elif event.type == pygame.JOYAXISMOTION and self.debug:
+                        if abs(event.value) > self.deadzone:
+                            self.emit(
+                                BridgeEvent(
+                                    "debug",
+                                    value=float(event.value),
+                                    message=f"axis {event.axis}: {event.value:+.2f}",
+                                )
                             )
-                        )
 
-            if not self.debug and self.enabled:
-                self._poll_left_stick(joystick)
-                self._poll_rt(joystick)
-            clock.tick(120)
+                if not self.debug:
+                    self._poll_left_stick(joystick)
+                    self._poll_right_stick(joystick)
+                    self._poll_rt(joystick)
+                clock.tick(120)
+        finally:
+            self._release_all_held_keys()
+            self._release_right_stick()
+            joystick.quit()
+            pygame.joystick.quit()
+            pygame.quit()
 
-        self.emit(BridgeEvent("stopped", message="Controller bridge stopped."))
+        self.emit(BridgeEvent("stopped", message="手柄映射已停止。"))
         return 0
 
     def _control_for_button(self, button_index: int) -> str | None:
@@ -130,41 +138,23 @@ class ControllerBridge:
     def _handle_button_down(self, button_index: int) -> None:
         control = self._control_for_button(button_index)
         if self.debug:
-            self.emit(BridgeEvent("debug", control=control, message=f"button DOWN: {button_index}"))
+            self.emit(BridgeEvent("debug", control=control, message=f"按键按下：{button_index}"))
             return
         if control is None:
-            self.emit(BridgeEvent("input", message=f"button {button_index}"))
+            self.emit(BridgeEvent("input", message=f"按键 {button_index}"))
             return
 
         self.emit(BridgeEvent("down", control=control, message=CONTROL_NAMES.get(control, control)))
-
-        if control == "START":
-            self._start_pressed_at = time.monotonic()
-            return
-        if not self.enabled:
-            return
         self.perform_control(control)
 
     def _handle_button_up(self, button_index: int) -> None:
         control = self._control_for_button(button_index)
         if self.debug:
-            self.emit(BridgeEvent("debug", control=control, message=f"button UP:   {button_index}"))
+            self.emit(BridgeEvent("debug", control=control, message=f"按键松开：{button_index}"))
             return
         if control:
             self.emit(BridgeEvent("up", control=control, message=CONTROL_NAMES.get(control, control)))
-        if control == "START" and self._start_pressed_at is not None:
-            held = time.monotonic() - self._start_pressed_at
-            if held >= self.start_hold_seconds:
-                self.enabled = not self.enabled
-                self.emit(
-                    BridgeEvent(
-                        "toggle",
-                        control="START",
-                        message=f"Mapping {'enabled' if self.enabled else 'paused'}",
-                        enabled=self.enabled,
-                    )
-                )
-            self._start_pressed_at = None
+            self._release_held_key(control)
 
     def _poll_left_stick(self, joystick: Any) -> None:
         y = float(joystick.get_axis(AXIS_INDEXES["LEFT_STICK_Y"]))
@@ -214,6 +204,33 @@ class ControllerBridge:
                 self._rt_fired = True
                 self.perform_control("RT")
 
+    def _poll_right_stick(self, joystick: Any) -> None:
+        x = float(joystick.get_axis(AXIS_INDEXES["RIGHT_STICK_X"]))
+        y = float(joystick.get_axis(AXIS_INDEXES["RIGHT_STICK_Y"]))
+        if abs(x) <= self.deadzone and abs(y) <= self.deadzone:
+            self._release_right_stick()
+            return
+
+        # One deflection performs one pane change. The stick must return to
+        # center before another direction can fire, preventing rapid skips.
+        if self._right_stick_control is not None:
+            return
+        if abs(x) > abs(y):
+            control = "RIGHT_STICK_LEFT" if x < 0 else "RIGHT_STICK_RIGHT"
+            value = x
+        else:
+            control = "RIGHT_STICK_UP" if y < 0 else "RIGHT_STICK_DOWN"
+            value = y
+        self._right_stick_control = control
+        self.emit(BridgeEvent("down", control=control, value=value))
+        self.perform_control(control)
+
+    def _release_right_stick(self) -> None:
+        if self._right_stick_control is None:
+            return
+        self.emit(BridgeEvent("up", control=self._right_stick_control))
+        self._right_stick_control = None
+
     def perform_control(self, control: str) -> None:
         mapping = mapping_for_control(self.config, control)
         if not mapping.get("enabled", True):
@@ -224,31 +241,52 @@ class ControllerBridge:
             return
 
         try:
-            self._perform_mapping(mapping)
+            self._perform_mapping(mapping, control)
         except Exception as exc:
             self.emit(BridgeEvent("error", control=control, message=str(exc), action_label=label))
 
-    def _perform_mapping(self, mapping: dict[str, Any]) -> None:
+    def _perform_mapping(self, mapping: dict[str, Any], control: str | None = None) -> None:
         action = mapping.get("action")
         if action == "key":
             macos.tap_key(mapping["key"])
+        elif action == "text":
+            macos.type_text(str(mapping.get("text", "")))
         elif action == "sequence":
             gap = float(mapping.get("gap", 0.04))
             for key in mapping.get("keys", []):
                 macos.tap_key(key)
                 time.sleep(gap)
-        elif action == "dictation":
-            macos_cfg = self.config.get("macos", {})
-            macos.tap_key(
-                macos_cfg.get("dictation_key", "f5"),
-                int(macos_cfg.get("dictation_flags", 0)),
-            )
+        elif action == "hold_key":
+            if control is None:
+                raise RuntimeError("hold_key 操作必须关联一个手柄输入")
+            key = mapping["key"]
+            with self._held_keys_lock:
+                if self.stop_event.is_set():
+                    return
+                if control not in self._held_keys:
+                    macos.key_down(key)
+                    self._held_keys[control] = key
         elif action == "tmux":
-            args = [str(arg) for arg in mapping.get("args", [])]
-            result = self.tmux.run(*args)
-            if not result.ok:
-                self.emit(BridgeEvent("warning", message=result.message))
-        elif action in {"none", "toggle_mapping"}:
+            args = mapping.get("args")
+            if args is not None:
+                command = " ".join(str(arg) for arg in args)
+            else:
+                command = str(mapping.get("command", ""))
+            self.tmux.send_command(command)
+        elif action == "none":
             return
         else:
-            raise RuntimeError(f"Unknown action type: {action}")
+            raise RuntimeError(f"未知操作类型：{action}")
+
+    def _release_held_key(self, control: str) -> None:
+        with self._held_keys_lock:
+            key = self._held_keys.pop(control, None)
+            if key is not None:
+                macos.key_up(key)
+
+    def _release_all_held_keys(self) -> None:
+        with self._held_keys_lock:
+            keys = list(self._held_keys.values())
+            self._held_keys.clear()
+        for key in keys:
+            macos.key_up(key)

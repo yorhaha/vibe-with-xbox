@@ -27,39 +27,36 @@ def check_controller() -> CheckResult:
         count = pygame.joystick.get_count()
         if count <= 0:
             return CheckResult(
-                "Controller",
+                "手柄",
                 "fail",
-                "No controller detected. Pair an Xbox controller over Bluetooth.",
+                "未检测到手柄，请通过蓝牙连接 Xbox 手柄。",
             )
         js = pygame.joystick.Joystick(0)
         js.init()
         return CheckResult(
-            "Controller",
+            "手柄",
             "ok",
-            f"{js.get_name()} detected ({js.get_numaxes()} axes, {js.get_numbuttons()} buttons).",
+            f"已检测到 {js.get_name()}（{js.get_numaxes()} 个轴，{js.get_numbuttons()} 个按键）。",
         )
     except Exception as exc:
-        return CheckResult("Controller", "fail", f"Cannot read controller: {exc}")
+        return CheckResult("手柄", "fail", f"无法读取手柄：{exc}")
     finally:
         if pygame is not None:
-            try:
-                pygame.joystick.quit()
-                pygame.quit()
-            except Exception:
-                pass
+            pygame.joystick.quit()
+            pygame.quit()
 
 
 def check_accessibility() -> CheckResult:
     trusted, message = macos.accessibility_trusted()
     if trusted is True:
-        return CheckResult("Accessibility", "ok", message)
+        return CheckResult("辅助功能权限", "ok", message)
     if trusted is False:
         return CheckResult(
-            "Accessibility",
+            "辅助功能权限",
             "fail",
-            "Grant Accessibility permission so Vibe with Xbox can send keys.",
+            "请授予辅助功能权限，以便 Vibe with Xbox 向其他应用发送按键。",
         )
-    return CheckResult("Accessibility", "warn", message)
+    return CheckResult("辅助功能权限", "warn", message)
 
 
 def check_tmux() -> CheckResult:
@@ -67,18 +64,9 @@ def check_tmux() -> CheckResult:
     return CheckResult("tmux", "ok" if result.ok else "warn", result.message)
 
 
-def check_dictation() -> CheckResult:
-    return CheckResult(
-        "Dictation",
-        "warn",
-        "macOS does not expose this shortcut reliably; set Dictation shortcut to F5.",
-    )
-
-
 def run_checks() -> list[CheckResult]:
     return [
         check_controller(),
         check_accessibility(),
         check_tmux(),
-        check_dictation(),
     ]
